@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Job Portal</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="nav"></nav>
+
+<main class="container">
+    <h1>Latest Jobs</h1>
+    <div id="message"></div>
+    <div id="jobs" class="grid"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+    renderNav();
+    const currentUser = getUser();
+
+    async function loadJobs() {
+        try {
+            const jobs = await apiCall("GET", "/jobs");
+            const container = document.getElementById("jobs");
+
+            if (jobs.length === 0) {
+                container.innerHTML = "<p>No jobs posted yet.</p>";
+                return;
+            }
+
+            container.innerHTML = jobs.map(job => {
+                const salary = job.salary
+                    ? "₹" + Number(job.salary).toLocaleString("en-IN")
+                    : "Not disclosed";
+                const applyButton = currentUser && currentUser.role === "STUDENT"
+                    ? '<button class="small" onclick="applyToJob(' + job.id + ')">Apply</button>'
+                    : "";
+
+                return '<div class="card">' +
+                    '<h3>' + escapeHtml(job.title) + '</h3>' +
+                    '<div class="meta">' + escapeHtml(job.company) + ' · ' + escapeHtml(job.location) + '</div>' +
+                    '<div class="meta">Salary: ' + salary + '</div>' +
+                    '<div class="meta">Posted by: ' + escapeHtml(job.postedByName || "Unknown") + '</div>' +
+                    '<p>' + escapeHtml(job.description) + '</p>' +
+                    applyButton +
+                    '</div>';
+            }).join("");
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    }
+
+    async function applyToJob(jobId) {
+        try {
+            await apiCall("POST", "/applications/apply/" + jobId);
+            showMessage("Applied successfully!", "success");
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    }
+
+    loadJobs();
+</script>
+</body>
+</html>

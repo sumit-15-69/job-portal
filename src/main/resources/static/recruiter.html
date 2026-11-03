@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Recruiter Dashboard - Job Portal</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="nav"></nav>
+
+<main class="container">
+    <h1>Recruiter Dashboard</h1>
+    <div id="message"></div>
+
+    <div class="card form-card wide">
+        <h2>Post a New Job</h2>
+        <form id="jobForm">
+            <label>Job title
+                <input type="text" id="title" required>
+            </label>
+            <label>Company
+                <input type="text" id="company" required>
+            </label>
+            <label>Location
+                <input type="text" id="location" required>
+            </label>
+            <label>Salary per year (₹)
+                <input type="number" id="salary" min="0">
+            </label>
+            <label>Description
+                <textarea id="description" rows="3"></textarea>
+            </label>
+            <button type="submit">Post Job</button>
+        </form>
+    </div>
+
+    <h2>My Posted Jobs</h2>
+    <div id="myJobs"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+    renderNav();
+    const user = getUser();
+
+    async function loadMyJobs() {
+        try {
+            const jobs = await apiCall("GET", "/jobs");
+            const mine = user.role === "ADMIN"
+                ? jobs
+                : jobs.filter(j => j.postedById === user.id);
+            const container = document.getElementById("myJobs");
+
+            if (mine.length === 0) {
+                container.innerHTML = "<p>You haven't posted any jobs yet.</p>";
+                return;
+            }
+
+            container.innerHTML = mine.map(job => `
+          <div class="card" style="margin-bottom:16px;">
+            <h3>${escapeHtml(job.title)}</h3>
+            <div class="meta">${escapeHtml(job.company)} · ${escapeHtml(job.location)}</div>
+            <button class="small" onclick="toggleApplicants(${job.id})">View Applicants</button>
+            <button class="small danger" onclick="deleteJob(${job.id})">Delete</button>
+            <div id="applicants-${job.id}"></div>
+          </div>
+        `).join("");
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    }
+
+    async function toggleApplicants(jobId) {
+        const box = document.getElementById("applicants-" + jobId);
+        if (box.innerHTML.trim() !== "") {
+            box.innerHTML = "";
+            return;
+        }
+        await loadApplicants(jobId);
+    }
+
+    async function loadApplicants(jobId) {
+        const box = document.getElementById("applicants-" + jobId);
+        try {
+            const apps = await apiCall("GET", "/applications/job/" + jobId);
+
+            if (apps.length === 0) {
+                box.innerHTML = '<p class="meta">No applicants yet.</p>';
+                return;
+            }
+
+            box.innerHTML = apps.map(a => `
+          <div class="applicant">
+            <div>
+              <strong>${escapeHtml(a.studentName)}</strong><br>
+              <span class="meta">${escapeHtml(a.studentEmail)}</span>
+            </div>
+            <div><span class="badge ${escapeHtml(a.status)}">${escapeHtml(a.status)}</span></div>
+            <div class="actions">
+              <button class="small" onclick="setStatus(${a.id}, ${jobId}, 'SHORTLISTED')">Shortlist</button>
+              <button class="small" onclick="setStatus(${a.id}, ${jobId}, 'ACCEPTED')">Accept</button>
+              <button class="small danger" onclick="setStatus(${a.id}, ${jobId}, 'REJECTED')">Reject</button>
+            </div>
+          </div>
+        `).join("");
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    }
+
+    async function setStatus(applicationId, jobId, status) {
+        try {
+            await apiCall("PUT", "/applications/" + applicationId + "/status", { status: status });
+            showMessage("Status updated to " + status, "success");
+            await loadApplicants(jobId);
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    }
+
+    async function deleteJob(jobId) {
+        if (!confirm("Delete this job and all its applications?")) return;
+        try {
+            await apiCall("DELETE", "/jobs/" + jobId);
+            showMessage("Job deleted", "success");
+            loadMyJobs();
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    }
+
+    document.getElementById("jobForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        const salaryValue = document.getElementById("salary").value;
+        try {
+            await apiCall("POST", "/jobs", {
+                title: document.getElementById("title").value,
+                company: document.getElementById("company").value,
+                location: document.getElementById("location").value,
+                salary: salaryValue ? Number(salaryValue) : null,
+                description: document.getElementById("description").value
+            });
+            showMessage("Job posted successfully!", "success");
+            form.reset();
+            loadMyJobs();
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    });
+
+    if (!user || (user.role !== "RECRUITER" && user.role !== "ADMIN")) {
+        window.location.href = "login.html";
+    } else {
+        loadMyJobs();
+    }
+</script>
+</body>
+</html>

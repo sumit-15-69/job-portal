@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My Applications - Job Portal</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="nav"></nav>
+
+<main class="container">
+    <h1>My Applications</h1>
+    <div id="message"></div>
+    <div id="applications" class="grid"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+    renderNav();
+    const user = getUser();
+
+    async function loadApplications() {
+        try {
+            const apps = await apiCall("GET", "/applications/my");
+            const container = document.getElementById("applications");
+
+            if (apps.length === 0) {
+                container.innerHTML = "<p>You haven't applied to any jobs yet. <a href='index.html'>Browse jobs</a></p>";
+                return;
+            }
+
+            container.innerHTML = apps.map(a => `
+          <div class="card">
+            <h3>${escapeHtml(a.jobTitle)}</h3>
+            <div class="meta">${escapeHtml(a.company)}</div>
+            <div class="meta">Applied on: ${escapeHtml(new Date(a.appliedAt).toLocaleDateString("en-IN"))}</div>
+            <p><span class="badge ${escapeHtml(a.status)}">${escapeHtml(a.status)}</span></p>
+          </div>
+        `).join("");
+        } catch (err) {
+            showMessage(err.message, "error");
+        }
+    }
+
+    if (!user || user.role !== "STUDENT") {
+        window.location.href = "login.html";
+    } else {
+        loadApplications();
+    }
+</script>
+</body>
+</html>
